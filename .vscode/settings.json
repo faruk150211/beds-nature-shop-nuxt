@@ -1,8 +1,20 @@
 {
-  "servers": {
-    "nuxt": {
-      "type": "http",
-      "url": "https://nuxt.com/mcp"
+  "mcpServers": {
+    "filesystem": {
+      "command": "node",
+      "args": ["--loader", "ts-node/esm", "./mcp-servers/filesystem.js"],
+      "disabled": true
+    },
+    "web-search": {
+      "command": "node",
+      "args": ["./mcp-servers/web-search.js"],
+      "disabled": true,
+      "alwaysAllow": []
+    },
+    "nuxt-docs": {
+      "command": "npx",
+      "args": ["@nuxt/mcp-server"],
+      "disabled": true
     }
   }
 }
