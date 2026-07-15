@@ -1,0 +1,47 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - run: npm ci
+
+      - run: npm run build
+        env:
+          NUXT_PUBLIC_API_BASE_URL: https://nature-shop-backend.bedsbd.org
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "${{ secrets.VPS_PORT }}" "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Rsync build output to server
+        run: |
+          rsync -avz --delete \
+            -e "ssh -p ${{ secrets.VPS_PORT }} -i ~/.ssh/id_ed25519" \
+            .output/ "${{ secrets.DEPLOY_USER }}@${{ secrets.VPS_HOST }}:~/nature-shop.bedsbd.org/.output/"
+
+      # Same persistent PM2 daemon already running for the bedsbd account
+      # (bootstrapped once, outside jailshell, for the first frontend) — this
+      # is just a new app registered on that same daemon, so a normal SSH
+      # command works fine here, no `at` trick needed.
+      - name: Restart app via PM2
+        run: |
+          ssh -p "${{ secrets.VPS_PORT }}" -i ~/.ssh/id_ed25519 "${{ secrets.DEPLOY_USER }}@${{ secrets.VPS_HOST }}" '
+            export PATH=$HOME/.npm-global/bin:/opt/cpanel/ea-nodejs22/bin:$PATH
+            cd ~/nature-shop.bedsbd.org
+            PORT=3001 pm2 restart nature-shop-frontend --update-env || PORT=3001 pm2 start .output/server/index.mjs --name nature-shop-frontend
+            pm2 save
+          '
